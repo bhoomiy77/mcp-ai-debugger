@@ -315,7 +315,18 @@ ${response.data.fixedCode}
 
     } catch (error) {
 
-        console.log(error)
+        console.log(
+    'AUTO FIX ERROR:',
+    error
+)
+
+console.log(
+    error.response
+)
+
+console.log(
+    error.message
+)
 
         addBotMessage(
             'Auto fix failed'
