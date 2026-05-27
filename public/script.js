@@ -22,8 +22,12 @@ window.addEventListener(
             errorMessage
         )
 
-        window.latestError =
-            errorMessage
+        window.latestError = errorMessage
+
+localStorage.setItem(
+    'latestError',
+    errorMessage
+)
 
         if (
             document.getElementById(
@@ -200,6 +204,16 @@ function addBotMessage(message) {
 async function sendMessage() {
     console.log(
     'SEND MESSAGE RUNNING'
+)
+
+window.latestError =
+    localStorage.getItem(
+        'latestError'
+    )
+
+console.log(
+    'LATEST ERROR:',
+    window.latestError
 )
 
     try {
