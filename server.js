@@ -79,9 +79,11 @@ app.post('/users', (req, res) => {
 
 app.post('/auto-fix', async (req, res) => {
 
-    let client
-
     try {
+
+        console.log(
+            'AUTO FIX API HIT'
+        )
 
         const browserError =
             req.body.error
@@ -97,82 +99,69 @@ app.post('/auto-fix', async (req, res) => {
             })
         }
 
-        client =
-            await createMCPClient()
+        console.log(
+            'BROWSER ERROR:',
+            browserError
+        )
 
+        const owner =
+            process.env.GITHUB_OWNER
 
-  const owner =
-    process.env.GITHUB_OWNER
+        const repo =
+            process.env.GITHUB_REPO
 
-const repo =
-    process.env.GITHUB_REPO
+        // FETCH HTML FILE
+        const htmlFile =
+            await octokit.repos.getContent({
 
-const htmlFile =
-    await octokit.repos.getContent({
-
-        owner,
-        repo,
-        path: 'public/index.html'
-    })
-
-const jsFile =
-    await octokit.repos.getContent({
-
-        owner,
-        repo,
-        path: 'public/script.js'
-    })
-
-const htmlContent =
-    Buffer.from(
-
-        htmlFile.data.content,
-
-        'base64'
-    ).toString()
-
-const jsContent =
-    Buffer.from(
-
-        jsFile.data.content,
-
-        'base64'
-    ).toString()
-    
-        const jsResult =
-            await client.callTool({
-
-                name: 'read_file',
-
-                arguments: {
-
-                    path:
-                        './public/script.js'
-                }
+                owner,
+                repo,
+                path: 'public/index.html'
             })
 
+        // FETCH JS FILE
+        const jsFile =
+            await octokit.repos.getContent({
+
+                owner,
+                repo,
+                path: 'public/script.js'
+            })
+
+        // DECODE HTML
         const htmlContent =
-            htmlResult.content[0].text
+            Buffer.from(
 
+                htmlFile.data.content,
+
+                'base64'
+            ).toString()
+
+        // DECODE JS
         const jsContent =
-            jsResult.content[0].text
+            Buffer.from(
 
-    
+                jsFile.data.content,
+
+                'base64'
+            ).toString()
+
+        // OPENAI FIX
         const response =
             await openai.chat.completions.create({
 
-            model: 'gpt-4.1-mini',
+                model: 'gpt-4.1-mini',
 
-            response_format: {
-                type: 'json_object'
-            },
+                response_format: {
+                    type: 'json_object'
+                },
 
-            messages: [
+                messages: [
 
-                {
-                    role: 'system',
+                    {
+                        role: 'system',
 
-                    content: `
+                        content: `
 
 You are an expert AI debugging assistant.
 
@@ -195,34 +184,9 @@ Rules:
   or
   script.js
 
-- If error comes from:
-  onclick
-  addEventListener
-  button actions
-  DOM events
-
-  then prefer fixing:
-  index.html
-
-- If error comes from:
-  variable
-  function
-  axios
-  fetch
-  logic
-
-  then prefer fixing:
-  script.js
-
 - fixedCode must contain COMPLETE corrected file
 
 - Return FULL valid code only
-
-- Do not shorten code
-
-- Do not skip lines
-
-- Preserve existing logic
 
 - Fix only ONE bug
 
@@ -230,12 +194,12 @@ Rules:
 
 - Do not wrap JSON in markdown
 `
-                },
+                    },
 
-                {
-                    role: 'user',
+                    {
+                        role: 'user',
 
-                    content: `
+                        content: `
 
 BROWSER ERROR:
 ${browserError}
@@ -246,9 +210,9 @@ ${htmlContent}
 JAVASCRIPT FILE:
 ${jsContent}
 `
-                }
-            ]
-        })
+                    }
+                ]
+            })
 
         if (
             !response.choices[0]
@@ -272,10 +236,6 @@ ${jsContent}
 
         } catch (error) {
 
-            console.log(
-                'INVALID AI JSON'
-            )
-
             return res.send({
 
                 success: false,
@@ -286,9 +246,10 @@ ${jsContent}
         }
 
         let updatedContent = ''
-        let targetPath = ''
+        let repoPath = ''
+        let sha = ''
 
-
+        // HTML FIX
         if (
             fix.file ===
             'index.html'
@@ -297,16 +258,14 @@ ${jsContent}
             updatedContent =
                 fix.fixedCode.trim()
 
-            console.log(
-                'AI CHOSE FILE:',
-                fix.file
-            )
+            repoPath =
+                'public/index.html'
 
-            targetPath =
-                './public/index.html'
+            sha =
+                htmlFile.data.sha
         }
 
-    
+        // JS FIX
         else if (
             fix.file ===
             'script.js'
@@ -315,13 +274,11 @@ ${jsContent}
             updatedContent =
                 fix.fixedCode.trim()
 
-            console.log(
-                'AI CHOSE FILE:',
-                fix.file
-            )
+            repoPath =
+                'public/script.js'
 
-            targetPath =
-                './public/script.js'
+            sha =
+                jsFile.data.sha
         }
 
         else {
@@ -335,7 +292,7 @@ ${jsContent}
             })
         }
 
-    
+        // INVALID CODE CHECK
         if (
             updatedContent.length < 50
         ) {
@@ -349,11 +306,10 @@ ${jsContent}
             })
         }
 
-    
+        // BACKUP
         const backupFolder =
             './backup'
 
-    
         if (
             !fs.existsSync(
                 backupFolder
@@ -368,13 +324,9 @@ ${jsContent}
             )
         }
 
-        
-        const backupPath =
-            `${backupFolder}/${fix.file}`
-
         fs.writeFileSync(
 
-            backupPath,
+            `${backupFolder}/${fix.file}`,
 
             fix.file === 'index.html'
                 ? htmlContent
@@ -383,83 +335,31 @@ ${jsContent}
             'utf-8'
         )
 
-        
-       const owner =
-    process.env.GITHUB_OWNER
+        // UPDATE GITHUB
+        await octokit.repos.createOrUpdateFileContents({
 
-const repo =
-    process.env.GITHUB_REPO
+            owner,
 
-const repoPath =
-    targetPath.replace(
-        './',
-        ''
-    )
+            repo,
 
+            path: repoPath,
 
-const currentFile =
-    await octokit.repos.getContent({
+            message:
+                `AI auto-fix: ${browserError}`,
 
-        owner,
-        repo,
-        path: repoPath
-    })
+            content:
+                Buffer.from(
+                    updatedContent
+                ).toString(
+                    'base64'
+                ),
 
-const sha =
-    currentFile.data.sha
-
-
-await octokit.repos.createOrUpdateFileContents({
-
-    owner,
-    repo,
-    path: repoPath,
-
-    message:
-        `AI auto-fix: ${browserError}`,
-
-    content:
-        Buffer.from(
-            updatedContent
-        ).toString('base64'),
-
-    sha
-})
-
-console.log(
-    'GitHub file updated'
-)
-    
-        const verifyResult =
-            await client.callTool({
-
-                name: 'read_file',
-
-                arguments: {
-
-                    path:
-                        targetPath
-                }
-            })
-
-        // console.log(
-
-        //     'UPDATED FILE CONTENT:\n',
-
-        //     verifyResult.content[0].text
-        // )
+            sha
+        })
 
         console.log(
-            'File write completed'
+            'GITHUB FILE UPDATED'
         )
-
-        console.log(
-            'Updated File:',
-            targetPath
-        )
-
-        
-        await client.close()
 
         res.send({
 
@@ -487,21 +387,6 @@ console.log(
             'AUTO FIX ERROR:',
             error
         )
-
-        if (client) {
-
-            try {
-
-                await client.close()
-
-            } catch (closeError) {
-
-                console.log(
-                    'MCP CLOSE ERROR:',
-                    closeError
-                )
-            }
-        }
 
         res.send({
 
