@@ -198,6 +198,9 @@ function addBotMessage(message) {
 
 
 async function sendMessage() {
+    console.log(
+    'SEND MESSAGE RUNNING'
+)
 
     try {
 
