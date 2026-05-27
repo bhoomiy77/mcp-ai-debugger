@@ -3,6 +3,9 @@ const express = require('express')
 const cors = require('cors')
 const dotenv = require('dotenv')
 const OpenAI = require('openai')
+const {
+    Octokit
+} = require('@octokit/rest')
 
 const {
     createMCPClient
@@ -24,7 +27,11 @@ const openai = new OpenAI({
     apiKey:
         process.env.OPENAI_API_KEY
 })
+const octokit = new Octokit({
 
+    auth:
+        process.env.GITHUB_TOKEN
+})
 
 let users = []
 
@@ -94,18 +101,43 @@ app.post('/auto-fix', async (req, res) => {
             await createMCPClient()
 
 
-        const htmlResult =
-            await client.callTool({
+  const owner =
+    process.env.GITHUB_OWNER
 
-                name: 'read_file',
+const repo =
+    process.env.GITHUB_REPO
 
-                arguments: {
+const htmlFile =
+    await octokit.repos.getContent({
 
-                    path:
-                        './public/index.html'
-                }
-            })
+        owner,
+        repo,
+        path: 'public/index.html'
+    })
 
+const jsFile =
+    await octokit.repos.getContent({
+
+        owner,
+        repo,
+        path: 'public/script.js'
+    })
+
+const htmlContent =
+    Buffer.from(
+
+        htmlFile.data.content,
+
+        'base64'
+    ).toString()
+
+const jsContent =
+    Buffer.from(
+
+        jsFile.data.content,
+
+        'base64'
+    ).toString()
     
         const jsResult =
             await client.callTool({
@@ -352,20 +384,51 @@ ${jsContent}
         )
 
         
-        await client.callTool({
+       const owner =
+    process.env.GITHUB_OWNER
 
-            name: 'write_file',
+const repo =
+    process.env.GITHUB_REPO
 
-            arguments: {
+const repoPath =
+    targetPath.replace(
+        './',
+        ''
+    )
 
-                path:
-                    targetPath,
 
-                content:
-                    updatedContent
-            }
-        })
+const currentFile =
+    await octokit.repos.getContent({
 
+        owner,
+        repo,
+        path: repoPath
+    })
+
+const sha =
+    currentFile.data.sha
+
+
+await octokit.repos.createOrUpdateFileContents({
+
+    owner,
+    repo,
+    path: repoPath,
+
+    message:
+        `AI auto-fix: ${browserError}`,
+
+    content:
+        Buffer.from(
+            updatedContent
+        ).toString('base64'),
+
+    sha
+})
+
+console.log(
+    'GitHub file updated'
+)
     
         const verifyResult =
             await client.callTool({
