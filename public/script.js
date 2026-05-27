@@ -1,5 +1,5 @@
 const API =
-'http://localhost:5000/users'
+'https://mcp-ai-debugger.onrender.com/users'
 
 window.latestError = ''
 
@@ -43,7 +43,7 @@ window.addEventListener(
     }
 )
 
-// FETCH USERS
+
 async function fetchUsers() {
 
     try {
@@ -103,7 +103,7 @@ async function fetchUsers() {
 
 fetchUsers()
 
-// ADD USER
+
 async function addUser() {
 
     try {
@@ -150,7 +150,7 @@ async function addUser() {
     }
 }
 
-// USER MESSAGE
+
 function addUserMessage(message) {
 
     const chatBox =
@@ -173,7 +173,7 @@ function addUserMessage(message) {
         chatBox.scrollHeight
 }
 
-// BOT MESSAGE
+
 function addBotMessage(message) {
 
     const chatBox =
@@ -196,7 +196,7 @@ function addBotMessage(message) {
         chatBox.scrollHeight
 }
 
-// SEND MESSAGE
+
 async function sendMessage() {
 
     try {
@@ -233,7 +233,7 @@ async function sendMessage() {
         const response =
             await axios.post(
 
-                'http://localhost:5000/auto-fix',
+                'https://mcp-ai-debugger.onrender.com/auto-fix',
 
                 {
                     error:
